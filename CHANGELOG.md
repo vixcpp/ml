@@ -1,13 +1,43 @@
-# 🧠 Changelog — vix-ai-core
+# Changelog
 
-Ce fichier suit les changements majeurs du module **vix-ai-core**.  
-Le format est inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/)  
-et respecte le [Semantic Versioning](https://semver.org/lang/fr/).
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [v0.1.0] — 2025-11-05
-### 🚀 Initial release
-- Initialisation du module **vix-ai-core**
-- Ajout des dossiers `include/`, `src/`, `scripts/`, `CMakeLists.txt`, et `Makefile`
-- Première intégration avec le projet parent **vix-ai**
+## [Unreleased]
+
+### Added
+- Initial examples for KMeans, Linear Regression, Logistic Regression, Preprocessing.
+- Support for saving and loading ML models.
+- Elbow curve method for determining optimal number of clusters.
+- MiniBatchKMeans implementation.
+- Dataset loader from CSV files.
+
+### Changed
+- N/A
+
+### Fixed
+- N/A
+
+---
+
+## [0.1.0] - 2026-03-13
+
+### Added
+- Core ML library with:
+  - `Dataset` handling
+  - `Model` base class
+  - `Regression` (linear and logistic)
+  - `Clustering` (KMeans)
+- CMake build system with options for tests, warnings, and installation.
+- Example programs in `examples/` directory.
+- Integration with `vix::ai::tensor` library (optional for future tensor-based operations).
+
+### Changed
+- N/A
+
+### Fixed
+- N/A

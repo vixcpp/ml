@@ -12,121 +12,178 @@
 #define VIX_AI_ML_MODEL_HPP
 
 #include <vix/ai/ml/Types.hpp>
+
 #include <istream>
 #include <ostream>
+#include <stdexcept>
+#include <string>
 
 namespace vix::ai::ml
 {
+
   /**
-   * @file Model.hpp
-   * @brief Base abstract class for all machine learning models in the Vix.AI.ML module.
+   * @brief Abstract base class for all machine learning models in Vix.AI.ML.
    *
-   * This class defines a unified interface for supervised and unsupervised learning algorithms.
-   * It provides virtual methods for training (`fit`), inference (`predict`, `predict_one`),
-   * and simple serialization (`save`/`load`).
+   * Defines a unified, scikit-learn-style interface for both supervised and
+   * unsupervised learning algorithms. Concrete models (e.g. LinearRegression,
+   * KMeans) inherit from this class and override the relevant virtual methods.
    *
-   * All derived models (e.g. LinearRegression, LogisticRegression, KMeans, PCA)
-   * should inherit from this class and implement at least `fit()` and `predict_one()`.
+   * ### Lifecycle
+   * 1. Construct the derived model.
+   * 2. Call `fit(X, y)` (supervised) or `fit(X)` (unsupervised).
+   * 3. Call `predict(X)` or `predict_one(x)` for inference.
+   * 4. Optionally call `save(os)` / `load(is)` for persistence.
    *
-   * ### Design goals:
-   * - Minimal and extensible API
-   * - Works uniformly for both supervised and unsupervised models
-   * - Allows generic evaluation and composition (e.g., pipelines)
-   *
-   * ### Example:
+   * ### Example
    * @code
-   * std::unique_ptr<Model> model = std::make_unique<LinearRegression>();
-   * model->fit(X_train, y_train);
-   * auto y_pred = model->predict(X_test);
+   * std::unique_ptr<Model> m = std::make_unique<LinearRegression>();
+   * m->fit(X_train, y_train);
+   * Vec preds = m->predict(X_test);
    * @endcode
+   *
+   * ### Thread safety
+   * - `predict` / `predict_one` are `const` and safe to call from multiple
+   *   threads simultaneously, provided no concurrent `fit` / `load` is active.
+   * - `fit` and `load` mutate model state and must not overlap with other calls.
    */
   class Model
   {
   public:
+    // -------------------------------------------------------------------------
+    // Lifecycle
+    // -------------------------------------------------------------------------
+
     virtual ~Model() = default;
 
-    /**
-     * @brief Train the model on supervised data (X, y).
-     * @param X Feature matrix (n_samples × n_features).
-     * @param y Target vector (n_samples).
-     *
-     * Default implementation is a no-op.
-     * Derived classes (e.g. regression, classification) should override it.
-     */
-    virtual void fit(const Mat &X, const Vec &y)
-    {
-      (void)X;
-      (void)y;
-    }
+    // Prevent accidental slicing while keeping value semantics optional for
+    // derived types that manage no resources.
+    Model() = default;
+    Model(const Model &) = default;
+    Model(Model &&) = default;
+    Model &operator=(const Model &) = default;
+    Model &operator=(Model &&) = default;
+
+    // -------------------------------------------------------------------------
+    // Training interface
+    // -------------------------------------------------------------------------
 
     /**
-     * @brief Train the model on unsupervised data (X).
-     * @param X Feature matrix (n_samples × n_features).
+     * @brief Supervised training on feature matrix @p X and target vector @p y.
      *
-     * Default implementation is a no-op.
-     * Used by algorithms like KMeans or PCA.
+     * The default implementation is a validated no-op: it checks that @p X is
+     * non-empty, that all rows are the same width, and that
+     * `y.size() == nrows(X)`, then returns without modifying any state.
+     *
+     * Derived supervised models (regression, classification, …) must override
+     * this method to store learned parameters.
+     *
+     * @param X Feature matrix  (n_samples × n_features), row-major.
+     * @param y Target vector   (n_samples).
+     *
+     * @throws std::invalid_argument if @p X is empty, rows have inconsistent
+     *         widths, or `y.size() != nrows(X)`.
      */
-    virtual void fit(const Mat &X)
-    {
-      (void)X;
-    }
+    virtual void fit(const Mat &X, const Vec &y);
 
     /**
-     * @brief Predict the output for a single input vector.
-     * @param x Input feature vector.
-     * @return Predicted scalar value (e.g., regression output or cluster ID).
+     * @brief Unsupervised training on feature matrix @p X.
      *
-     * Default implementation returns 0.0.
-     * Derived models should override this with the actual prediction logic.
+     * The default implementation validates @p X (non-empty, uniform row width)
+     * and returns without modifying any state.
+     *
+     * Unsupervised models (KMeans, PCA, …) must override this method.
+     *
+     * @param X Feature matrix (n_samples × n_features), row-major.
+     *
+     * @throws std::invalid_argument if @p X is empty or rows have inconsistent
+     *         widths.
      */
-    virtual double predict_one(const Vec &x) const
-    {
-      (void)x;
-      return 0.0;
-    }
+    virtual void fit(const Mat &X);
+
+    // -------------------------------------------------------------------------
+    // Inference interface
+    // -------------------------------------------------------------------------
 
     /**
-     * @brief Predict outputs for a batch of input samples.
-     * @param X Input feature matrix (n_samples × n_features).
-     * @return Vector of predictions (n_samples).
+     * @brief Predict the output for a single feature vector @p x.
      *
-     * This method calls `predict_one()` for each row of X.
-     * Derived classes can override for vectorized implementations.
+     * The default implementation returns `0.0`.  Derived models must override
+     * this with their actual prediction logic.
+     *
+     * @param x Feature vector (n_features).
+     * @return Predicted scalar (e.g. regression value, class label, cluster id).
      */
-    virtual Vec predict(const Mat &X) const
-    {
-      Vec out;
-      out.reserve(nrows(X));
-      for (const auto &row : X)
-        out.push_back(predict_one(row));
-      return out;
-    }
+    virtual double predict_one(const Vec &x) const;
 
     /**
-     * @brief Save model parameters to a text stream.
-     * @param os Output stream.
+     * @brief Batch-predict outputs for every row in @p X.
      *
-     * Default implementation does nothing.
-     * Derived models (e.g. LinearRegression) should override this.
+     * The default implementation calls `predict_one()` for each row.  Derived
+     * classes may override for a vectorised implementation.
+     *
+     * @param X Feature matrix (n_samples × n_features), row-major.
+     * @return Prediction vector (n_samples).
      */
-    virtual void save(std::ostream &os) const
-    {
-      (void)os;
-    }
+    virtual Vec predict(const Mat &X) const;
+
+    // -------------------------------------------------------------------------
+    // Serialisation interface
+    // -------------------------------------------------------------------------
 
     /**
-     * @brief Load model parameters from a text stream.
-     * @param is Input stream.
+     * @brief Serialise learned parameters to a text stream.
      *
-     * Default implementation does nothing.
-     * Derived models (e.g. LinearRegression) should override this.
+     * The default implementation writes nothing.  Derived models should write
+     * their parameters in a format that `load()` can round-trip.
+     *
+     * @param os Writable output stream (file, stringstream, …).
      */
-    virtual void load(std::istream &is)
-    {
-      (void)is;
-    }
+    virtual void save(std::ostream &os) const;
+
+    /**
+     * @brief Deserialise learned parameters from a text stream.
+     *
+     * The default implementation reads nothing.  Derived models should restore
+     * exactly the state written by `save()`.
+     *
+     * @param is Readable input stream.
+     */
+    virtual void load(std::istream &is);
+
+  protected:
+    // -------------------------------------------------------------------------
+    // Validation helpers (available to all derived classes)
+    // -------------------------------------------------------------------------
+
+    /**
+     * @brief Assert that @p X is a valid, non-empty matrix with uniform row
+     *        widths.
+     *
+     * @param X Matrix to validate.
+     * @param context Caller description embedded in the exception message.
+     *
+     * @throws std::invalid_argument on any violation.
+     */
+    static void validate_matrix(const Mat &X,
+                                const std::string &context = "Model");
+
+    /**
+     * @brief Assert that @p X is a valid matrix **and** that @p y aligns with
+     *        it row-wise (`y.size() == nrows(X)`).
+     *
+     * Internally calls `validate_matrix(X, context)` first.
+     *
+     * @param X Feature matrix.
+     * @param y Target vector.
+     * @param context Caller description embedded in the exception message.
+     *
+     * @throws std::invalid_argument on any violation.
+     */
+    static void validate_supervised(const Mat &X,
+                                    const Vec &y,
+                                    const std::string &context = "Model");
   };
 
 } // namespace vix::ai::ml
 
-#endif
+#endif // VIX_AI_ML_MODEL_HPP
