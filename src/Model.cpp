@@ -15,11 +15,6 @@
 
 namespace vix::ai::ml
 {
-
-  // =============================================================================
-  // Protected static helpers
-  // =============================================================================
-
   /**
    * @brief Validate that @p X is non-empty and that every row has the same
    *        number of columns as the first row.
@@ -84,10 +79,6 @@ namespace vix::ai::ml
     }
   }
 
-  // =============================================================================
-  // Training — default (validated no-ops)
-  // =============================================================================
-
   /**
    * Default supervised fit: validates inputs and returns without modifying state.
    * Derived supervised models must override this.
@@ -107,10 +98,6 @@ namespace vix::ai::ml
     validate_matrix(X, "Model::fit(X)");
     // No-op: base class holds no parameters.
   }
-
-  // =============================================================================
-  // Inference
-  // =============================================================================
 
   /**
    * Default single-sample prediction.
@@ -144,10 +131,6 @@ namespace vix::ai::ml
       out.push_back(predict_one(row));
     return out;
   }
-
-  // =============================================================================
-  // Serialisation — default (no-ops)
-  // =============================================================================
 
   /**
    * Default save: writes nothing.

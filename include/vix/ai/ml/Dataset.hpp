@@ -1,12 +1,16 @@
 /**
- * @file Dataset.hpp
- * @author Gaspard Kirira
  *
- * Copyright 2025, Gaspard Kirira. All rights reserved.
- * https://github.com/vixcpp/vix
- * Use of this source code is governed by a MIT license that can be found in the License file.
+ *  @file Dataset.hpp
+ *  @author Gaspard Kirira
  *
- * Vix.cpp
+ *  Copyright 2025, Gaspard Kirira.
+ *  All rights reserved.
+ *  https://github.com/vixcpp/vix
+ *
+ *  Use of this source code is governed by a MIT license
+ *  that can be found in the License file.
+ *
+ *  Vix.cpp
  */
 #ifndef VIX_AI_ML_DATASET_HPP
 #define VIX_AI_ML_DATASET_HPP
